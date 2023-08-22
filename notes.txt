@@ -1,0 +1,9 @@
+
+
+Application Credentials OpenStack: 
+
+ID:         eb786787668744d296fcf939e6bd06f2
+
+Name:       proof-of-concept
+
+Secret:     XIRgA7futVuV2HioGbobZMLuw1_6RZbni35s4hBf8hR1h59P3e38YBKGIHxcuAo13h7wASRe-7FgKSmNwKM5sA
