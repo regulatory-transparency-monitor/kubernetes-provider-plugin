@@ -53,6 +53,6 @@ func (c *HTTPClient) GetToken() string {
 }
 
 func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("X-AUTH-TOKEN", c.Token)
+	//req.Header.Set("X-AUTH-TOKEN", c.Token)
 	return c.Client.Do(req)
 }
