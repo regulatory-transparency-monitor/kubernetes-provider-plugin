@@ -1,92 +1,115 @@
 package services
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 
-	"github.com/regulatory-transparency-monitor/commons/models"
-	"github.com/regulatory-transparency-monitor/kubernetes-provider-plugin/pkg/api"
-	"github.com/regulatory-transparency-monitor/kubernetes-provider-plugin/pkg/httpwrapper"
-	"github.com/regulatory-transparency-monitor/kubernetes-provider-plugin/pkg/interfaces"
+	shared "github.com/regulatory-transparency-monitor/commons/models"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
-// KubernetesPlugin is a struct holding Keystone and Nova service
 type KubernetesPlugin struct {
-	Cluster  interfaces.ClusterAPI
-	Workload interfaces.WorkloadAPI
+	Clientset *kubernetes.Clientset
+	Config    map[string]interface{}
 }
 
-// TODO pass base url and credentials as parameters from the graph builder service
-func (provider *KubernetesPlugin) Initialize() error {
-	httpClient := httpwrapper.NewClient("http://localhost:8001/api/v1/")
-
-	provider.Cluster = &api.ClusterResources{
-		Client: httpClient,
-		// provide url and credentials here
-	}
-	provider.Workload = &api.WorkloadResources{
-		BaseURL: "namespaces/sock-shop/",
-		Client:  httpClient,
-		// provide url and credentials here
+func (provider *KubernetesPlugin) Initialize(config map[string]interface{}) error {
+	apiAccess, ok := config["api_access"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("kubernetes api_access configuration is missing or invalid")
 	}
 
+	kubeURL, ok := apiAccess["base_url"].(string)
+	if !ok || kubeURL == "" {
+		return fmt.Errorf("kubernetes host configuration is missing or invalid")
+	}
+
+	kubeConfig := &rest.Config{
+		Host: kubeURL,
+	}
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return err
+	}
+
+	provider.Clientset = clientset
 	return nil
+}
+func (provider *KubernetesPlugin) FetchData() (shared.RawData, error) {
+	data := make(shared.RawData)
 
+	nodes, err := provider.FetchNodes()
+	if err != nil {
+		return data, err
+	}
+
+	pods, err := provider.FetchPods()
+	if err != nil {
+		return data, err
+	}
+
+	pvs, err := provider.FetchPersistentVolumes()
+	if err != nil {
+		return data, err
+	}
+	nodeInterfaces := convertNodesToInterfaces(nodes)
+	podInterfaces := convertPodsToInterfaces(pods)
+	pvInterfaces := convertPVsToInterfaces(pvs)
+
+	data["k8s_pv"] = pvInterfaces
+	data["k8s_node"] = nodeInterfaces
+	data["k8s_pod"] = podInterfaces
+
+	return data, nil
 }
 
-// Scan returns fetched data from OpenStack API
-func (provider *KubernetesPlugin) Scan() (models.CombinedResources, error) {
-	var resources models.CombinedResources
-	resources.Source = "kubernetes"
-
-	clusterResources, err := provider.FetchClusterData()
-	if err != nil {
-		return resources, err
-
+func convertNodesToInterfaces(nodes []corev1.Node) []interface{} {
+	nodeInterfaces := make([]interface{}, len(nodes))
+	for i, node := range nodes {
+		nodeInterfaces[i] = node
 	}
-	resources.Data = append(resources.Data, *clusterResources)
-
-	workloadResources, err := provider.FetchWorkloadData()
-	if err != nil {
-		return resources, err
-	}
-	resources.Data = append(resources.Data, *workloadResources)
-
-	return resources, nil
+	return nodeInterfaces
 }
 
-func (provider *KubernetesPlugin) FetchClusterData() (*models.ServiceData, error) {
+func convertPodsToInterfaces(pods []corev1.Pod) []interface{} {
+	podInterfaces := make([]interface{}, len(pods))
+	for i, pod := range pods {
+		podInterfaces[i] = pod
+	}
+	return podInterfaces
+}
 
-	nodeListModel, err := provider.Cluster.GetNodes()
+func convertPVsToInterfaces(pvs []corev1.PersistentVolume) []interface{} {
+	pvInterfaces := make([]interface{}, len(pvs))
+	for i, pv := range pvs {
+		pvInterfaces[i] = pv
+	}
+	return pvInterfaces
+}
+func (provider *KubernetesPlugin) FetchNodes() ([]corev1.Node, error) {
+	nodeList, err := provider.Clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-
-	return &models.ServiceData{
-		ServiceSource: "cluster",
-		Data:          []interface{}{nodeListModel},
-	}, nil
+	return nodeList.Items, nil
 }
 
-func (provider *KubernetesPlugin) FetchWorkloadData() (*models.ServiceData, error) {
-
-	podListModel, err := provider.Workload.GetPods()
+func (provider *KubernetesPlugin) FetchPods() ([]corev1.Pod, error) {
+	podList, err := provider.Clientset.CoreV1().Pods("sock-shop").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-
-	return &models.ServiceData{
-		ServiceSource: "workload",
-		Data:          []interface{}{podListModel},
-	}, nil
-
+	return podList.Items, nil
 }
 
-func PrintAsJSON(v interface{}) {
-	data, err := json.MarshalIndent(v, "", "  ")
+func (provider *KubernetesPlugin) FetchPersistentVolumes() ([]corev1.PersistentVolume, error) {
+	pvList, err := provider.Clientset.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		fmt.Println("Error marshalling to JSON:", err)
+		return nil, err
 	}
-
-	fmt.Println(string(data))
+	return pvList.Items, nil
 }
