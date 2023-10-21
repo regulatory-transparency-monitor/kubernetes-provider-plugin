@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"flag"
 	"fmt"
 
 	shared "github.com/regulatory-transparency-monitor/commons/models"
@@ -9,11 +10,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 type KubernetesPlugin struct {
 	Clientset *kubernetes.Clientset
 	Config    map[string]interface{}
+}
+
+func init() {
+	klog.InitFlags(nil)
+	_ = flag.Set("logtostderr", "true")
+	_ = flag.Set("v", "6")
+	flag.Parse()
 }
 
 func (provider *KubernetesPlugin) Initialize(config map[string]interface{}) error {
