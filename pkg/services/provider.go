@@ -40,6 +40,9 @@ func (provider *KubernetesPlugin) Initialize(config map[string]interface{}) erro
 	if !ok || token == "" {
 		return fmt.Errorf("kubernetes token configuration is missing or invalid")
 	}
+	fmt.Println("Using API URL:", kubeURL)
+	fmt.Println("Using Token:", token)
+
 
 	kubeConfig := &rest.Config{
 		Host: kubeURL,
