@@ -17,6 +17,7 @@ type KubernetesPlugin struct {
 }
 
 func (provider *KubernetesPlugin) Initialize(config map[string]interface{}) error {
+
 	apiAccess, ok := config["api_access"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("kubernetes api_access configuration is missing or invalid")
@@ -24,11 +25,19 @@ func (provider *KubernetesPlugin) Initialize(config map[string]interface{}) erro
 
 	kubeURL, ok := apiAccess["base_url"].(string)
 	if !ok || kubeURL == "" {
-		return fmt.Errorf("kubernetes host configuration is missing or invalid")
+		return fmt.Errorf("kubernetes kubeURL configuration is missing or invalid")
+	}
+	token, ok := apiAccess["token"].(string)
+	if !ok || token == "" {
+		return fmt.Errorf("kubernetes token configuration is missing or invalid")
 	}
 
 	kubeConfig := &rest.Config{
 		Host: kubeURL,
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure: true,
+		},
+		BearerToken: token,
 	}
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
